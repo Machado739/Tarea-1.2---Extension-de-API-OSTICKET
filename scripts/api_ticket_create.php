@@ -1,83 +1,63 @@
 #!/usr/bin/php -q
 <?php
+#
+# Configuration: Enter the url and key. That is it.
+#  url => URL to api/task/cron e.g #  http://yourdomain.com/support/api/tickets.json
+#  key => API's Key (see admin panel on how to generate a key)
+#
 
-// Configuración: Utilizando variables de entorno para evitar exponer datos sensibles en el código
 $config = array(
-    'url' => getenv('API_URL'),
-    'key' => getenv('API_KEY')
-);
+        'url'=>'http://domain.com/api/tickets.json',
+        'key'=>'<api key>'
+        );
 
-// Verificación de la configuración
-if (!$config['url'] || !$config['key']) {
-    die("Error: Configuración de URL o clave API no válida.\n");
-}
+# Fill in the data for the new ticket, this will likely come from $_POST.
 
-// Recolectar datos para el nuevo ticket (idealmente estos vendrían desde $_POST)
 $data = array(
-    'name'      => filter_input(INPUT_POST, 'name', FILTER_SANITIZE_STRING) ?: 'John Doe',
-    'email'     => filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL) ?: 'mailbox@host.com',
-    'subject'   => filter_input(INPUT_POST, 'subject', FILTER_SANITIZE_STRING) ?: 'Test API message',
-    'message'   => filter_input(INPUT_POST, 'message', FILTER_SANITIZE_STRING) ?: 'This is a test of the osTicket API',
-    'ip'        => $_SERVER['REMOTE_ADDR'],
+    'name'      =>      'John Doe',
+    'email'     =>      'mailbox@host.com',
+    'subject'   =>      'Test API message',
+    'message'   =>      'This is a test of the osTicket API',
+    'ip'        =>      $_SERVER['REMOTE_ADDR'],
     'attachments' => array(),
 );
 
-// Añadir adjuntos si es necesario (a partir de archivos subidos, por ejemplo)
-if (isset($_FILES['attachments']) && is_array($_FILES['attachments']['tmp_name'])) {
-    foreach ($_FILES['attachments']['tmp_name'] as $index => $tmpName) {
-        if (is_uploaded_file($tmpName)) {
-            $data['attachments'][] = array(
-                $_FILES['attachments']['name'][$index] => 
-                'data:' . mime_content_type($tmpName) . ';base64,' . base64_encode(file_get_contents($tmpName))
-            );
-        }
-    }
-}
+/* 
+ * Add in attachments here if necessary
 
-// Verificación previa: Asegurarse de que cURL y JSON estén disponibles
-if (!function_exists('curl_version')) {
-    die('Error: Se requiere soporte de CURL.\n');
-}
-if (!function_exists('json_encode')) {
-    die('Error: Se requiere soporte de JSON.\n');
-}
+$data['attachments'][] =
+array('filename.pdf' =>
+        'data:image/png;base64,' .
+            base64_encode(file_get_contents('/path/to/filename.pdf')));
+ */
 
-// Configuración de tiempo de espera
+#pre-checks
+function_exists('curl_version') or die('CURL support required');
+function_exists('json_encode') or die('JSON support required');
+
+#set timeout
 set_time_limit(30);
 
-// Configuración de cURL
+#curl post
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $config['url']);
-curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POST, 1);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
 curl_setopt($ch, CURLOPT_USERAGENT, 'osTicket API Client v1.7');
-curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-    'Expect:', 
-    'X-API-Key: ' . $config['key'],
-    'Content-Type: application/json'
-));
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-// Ejecutar cURL y manejar errores
-$result = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curlError = curl_error($ch);
+curl_setopt($ch, CURLOPT_HEADER, FALSE);
+curl_setopt($ch, CURLOPT_HTTPHEADER, array( 'Expect:', 'X-API-Key: '.$config['key']));
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, FALSE);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+$result=curl_exec($ch);
+$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-if ($httpCode != 201) {
-    die('Error al crear el ticket: ' . ($curlError ? $curlError : $result) . "\n");
-}
+if ($code != 201)
+    die('Unable to create ticket: '.$result);
 
-// Obtener ID del ticket creado
-$ticket = json_decode($result, true);
-$ticket_id = isset($ticket['id']) ? (int) $ticket['id'] : null;
+$ticket_id = (int) $result;
 
-if (!$ticket_id) {
-    die("Error: No se pudo obtener el ID del ticket.\n");
-}
-
-// Continuar con el proceso si es necesario
-echo "Ticket creado exitosamente con ID: " . $ticket_id . "\n";
+# Continue onward here if necessary. $ticket_id has the ID number of the
+# newly-created ticket
 
 ?>
