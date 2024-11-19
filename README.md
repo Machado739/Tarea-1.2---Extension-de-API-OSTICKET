@@ -19,7 +19,3 @@ Este proyecto es una extensión de la API de osTicket, que añade funcionalidad 
 
 ## Instalación
 
-1. **Clonar el Repositorio**
-
-   ```bash
-   git clone https://github.com/PabloMartinezA/osticketApiUsuarios.git
